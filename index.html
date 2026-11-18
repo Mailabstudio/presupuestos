@@ -2498,7 +2498,7 @@ NIF: B27540947`);
       cuotaIva:'Quota IVA',
       emitido:'Emès el',
       fecha:'Data:',
-      totCant:'TOTALS PER QUANTITAT',
+      totCant:'TOTALS PER QUANTITAT', sinIva:'Preus sense IVA (IVA no inclòs)',
     };
     return {
       titulo:{'PRE':'PRESUPUESTO','HOJ':'HOJA DE TRABAJO','ALB':'ALBARÁN','FAC':'FACTURA'},
@@ -2511,7 +2511,7 @@ NIF: B27540947`);
       cuotaIva:'Cuota IVA',
       emitido:'Emitido el',
       fecha:'Fecha:',
-      totCant:'TOTALES POR CANTIDAD',
+      totCant:'TOTALES POR CANTIDAD', sinIva:'Precios sin IVA (IVA no incluido)',
     };
   },
 
@@ -2642,24 +2642,28 @@ NIF: B27540947`);
       const p=inputs[1]?.value||'0';
       const iva=row.querySelector('select')?.value||'21';
       const sub=(parseFloat(c)*parseFloat(p)).toFixed(2);
-      if(isHoj||!valorado||nsMode) rows.push([d,c]);
+      if(isHoj||!valorado) rows.push([d,c]);
+      else if(nsMode) rows.push([d,c,parseFloat(p).toFixed(2)+' €',sub+' €']);
       else rows.push([d,c,parseFloat(p).toFixed(2)+' €',iva+'%',sub+' €']);
     });
 
     doc.autoTable({
       startY:y,
-      head:[isHoj||!valorado||nsMode?[i18n.desc,i18n.cant]:[i18n.desc,i18n.cant,i18n.precio,i18n.iva,i18n.subtotal]],
+      head:[nsMode?[i18n.desc,i18n.cant,i18n.precio,'Total']:isHoj||!valorado?[i18n.desc,i18n.cant]:[i18n.desc,i18n.cant,i18n.precio,i18n.iva,i18n.subtotal]],
       body:rows, theme:'grid',
       headStyles:{fillColor:c1,textColor:hdrTextRgb,fontStyle:'bold',fontSize:8},
       bodyStyles:{fontSize:8.5,textColor:[30,41,59]},
       alternateRowStyles:{fillColor:[248,250,252]},
-      columnStyles: (isHoj||nsMode)
+      columnStyles: nsMode
+        ? {0:{cellWidth:'auto'},1:{halign:'center',cellWidth:20},2:{halign:'right',cellWidth:26},3:{halign:'right',cellWidth:28}}
+        : isHoj
         ? {0:{cellWidth:'auto'},1:{halign:'center',cellWidth:22}}
         : {0:{cellWidth:'auto'},1:{halign:'center',cellWidth:18},2:{halign:'right',cellWidth:24},3:{halign:'center',cellWidth:16},4:{halign:'right',cellWidth:24}},
       margin:{left:M,right:M}
     });
 
     let fy=doc.lastAutoTable.finalY+8;
+    if(nsMode){ doc.setFontSize(8); doc.setFont(undefined,'italic'); doc.setTextColor(100,116,139); doc.text(i18n.sinIva,W-M,fy-2,{align:'right'}); doc.setFont(undefined,'normal'); fy+=6; }
     // Totales
     if(!isHoj && valorado && !nsMode){
       const totals=LINES.calc();
