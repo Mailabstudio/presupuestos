@@ -159,6 +159,8 @@ html.dark mark { background:#854d0e; color:#fef9c3; }
   pointer-events:none; opacity:.7; background:var(--sec)!important;
 }
 .doc-locked .lock-hide { display:none!important; }
+.ns-row td { background:rgba(124,58,237,.10)!important; }
+.ns-row .ti-sub { font-style:italic; opacity:.75; }
 .lock-banner {
   display:none; align-items:center; gap:10px;
   padding:12px 18px; border-radius:10px; font-size:13px; font-weight:700;
@@ -882,7 +884,7 @@ function goToDash(){
       <!-- TABLA LÍNEAS -->
       <div class="rounded-xl overflow-hidden shadow" style="border:2px solid var(--text)">
         <div class="overflow-x-auto">
-          <table class="dtable" style="min-width:580px">
+          <table class="dtable" style="min-width:650px">
             <thead>
               <tr>
                 <th class="text-left" style="width:auto">Descripción</th>
@@ -890,6 +892,7 @@ function goToDash(){
                 <th id="th-precio" style="width:110px">Precio €</th>
                 <th id="th-iva"    style="width:80px">IVA</th>
                 <th id="th-sub"    style="width:110px">Subtotal</th>
+                <th id="th-ns" class="ns-col" style="width:72px" title="Marca las lineas informativas (escalado): se ven igual pero no suman al total">No suma</th>
                 <th style="width:36px"></th>
               </tr>
             </thead>
@@ -906,35 +909,6 @@ function goToDash(){
           </div>
           <div id="totals-block" class="text-right"></div>
         </div>
-      </div>
-
-      <!-- ESCALADO DE CANTIDADES (solo PRE; informativo, NO suma al total) -->
-      <div id="esc-block" class="rounded-xl overflow-hidden shadow" style="display:none;border:2px solid #7c3aed">
-        <div class="p-3" style="background:var(--sec);border-bottom:1px solid var(--border)">
-          <div class="text-xs font-black uppercase tracking-widest" style="color:#7c3aed">Escalado de cantidades</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px">Informativo: no suma al total del presupuesto. Importe = cantidad x precio/ud, sin IVA.</div>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="dtable" style="min-width:520px">
-            <thead>
-              <tr>
-                <th class="text-left" style="width:auto">Concepto (opcional)</th>
-                <th style="width:110px">Cantidad</th>
-                <th style="width:120px">Precio/ud €</th>
-                <th style="width:120px">Importe</th>
-                <th style="width:36px"></th>
-              </tr>
-            </thead>
-            <tbody id="esc-body"></tbody>
-          </table>
-        </div>
-        <div class="p-3 border-t" style="background:var(--sec);border-color:var(--border)">
-          <button class="btn lock-hide" style="padding:7px 14px;font-size:11px;background:#7c3aed;color:#ffffff;font-weight:900" onclick="ESC.add()">+ ESCALADO</button>
-        </div>
-      </div>
-
-      <div id="esc-add-wrap" style="display:none">
-        <button class="btn lock-hide" style="padding:9px 18px;font-size:11px;font-weight:900;background:#ffffff;color:#7c3aed;border:2px dashed #7c3aed;border-radius:8px;cursor:pointer" onclick="ESC.show()">+ AÑADIR ESCALADO DE CANTIDADES</button>
       </div>
 
       <!-- IBAN -->
@@ -1412,83 +1386,10 @@ const EMISOR = {
 };
 
 // ════════════════════════════════════════════════════════
-//  ESCALADO DE CANTIDADES (solo PRE, informativo: NO entra en LINES.calc ni en totales)
-// ════════════════════════════════════════════════════════
-const ESC = {
-  _num(v){ const n=parseFloat(String(v==null?'':v).replace(',','.')); return isNaN(n)?0:n; },
-  _money(n){ return (Math.round(n*100)/100).toFixed(2)+' €'; },
-  add(c='', q='', p=''){
-    const body=$id('esc-body'); if(!body) return;
-    const tr=document.createElement('tr');
-    const td=()=>document.createElement('td');
-    const mk=(type,cls,val,ph)=>{
-      const i=document.createElement('input');
-      i.type=type; i.className=cls; i.value=val; if(ph) i.placeholder=ph;
-      if(type==='number'){ i.min='0'; i.step='any'; }
-      i.oninput=function(){ ESC.changed(); };
-      return i;
-    };
-    const t1=td(), t2=td(), t3=td(), t4=td(), t5=td();
-    t1.appendChild(mk('text','ti',c,'Ej: Camiseta serigrafiada'));
-    t2.appendChild(mk('number','ti ti-qty',q,'100'));
-    t3.className='money-col'; t3.appendChild(mk('number','ti ti-num',p,'0.00'));
-    t4.className='money-col esc-imp'; t4.style.textAlign='right'; t4.style.fontWeight='700';
-    const bt=document.createElement('button');
-    bt.className='btn btn-red lock-hide'; bt.style.padding='4px 8px'; bt.textContent='✕';
-    bt.onclick=function(){ tr.remove(); ESC.changed(); };
-    t5.appendChild(bt);
-    [t1,t2,t3,t4,t5].forEach(x=>tr.appendChild(x));
-    body.appendChild(tr);
-    ESC.calcRow(tr);
-  },
-  calcRow(tr){
-    const ins=tr.querySelectorAll('input');
-    const cell=tr.querySelector('.esc-imp');
-    if(cell) cell.textContent=ESC._money(ESC._num(ins[1].value)*ESC._num(ins[2].value));
-  },
-  changed(){
-    document.querySelectorAll('#esc-body tr').forEach(ESC.calcRow);
-    DOC.autosave();
-    ESC.refresh(fase);
-  },
-  getRows(){
-    const rows=[];
-    document.querySelectorAll('#esc-body tr').forEach(tr=>{
-      const ins=tr.querySelectorAll('input');
-      const c=ins[0].value.trim(), q=ins[1].value, p=ins[2].value;
-      if(!c && !q && !p) return;           // fila vacia: se ignora
-      rows.push({c:c, q:q, p:p});
-    });
-    return rows;
-  },
-  loadRows(rows){
-    const body=$id('esc-body'); if(!body) return;
-    body.innerHTML='';
-    (rows||[]).forEach(r=>ESC.add(r.c||'', r.q==null?'':r.q, r.p==null?'':r.p));
-    ESC.refresh(fase);
-  },
-  clear(){ const b=$id('esc-body'); if(b) b.innerHTML=''; ESC.refresh(fase); },
-  // Bloque visible solo si hay filas; si no, se muestra el boton "Anadir escalado". Solo en PRE.
-  refresh(f){
-    const b=$id('esc-block'), w=$id('esc-add-wrap');
-    const n=document.querySelectorAll('#esc-body tr').length;
-    if(f!=='PRE'){ if(b) b.style.display='none'; if(w) w.style.display='none'; return; }
-    if(b) b.style.display=n?'':'none';
-    if(w) w.style.display=n?'none':'';
-  },
-  show(){
-    if(!document.querySelector('#esc-body tr')) ESC.add();
-    ESC.refresh('PRE');
-    const i=document.querySelector('#esc-body input'); if(i) i.focus();
-  },
-  applyVisibility(f){ ESC.refresh(f); }
-};
-
-// ════════════════════════════════════════════════════════
 //  LÍNEAS DEL DOCUMENTO
 // ════════════════════════════════════════════════════════
 const LINES = {
-  add(d='', c='1', p='0', iva='21'){
+  add(d='', c='1', p='0', iva='21', ns=false){
     const tr=document.createElement('tr');
     const idx=document.querySelectorAll('#lines-body tr').length;
     if(idx%2===0) tr.style.background='var(--odd)';
@@ -1503,6 +1404,7 @@ const LINES = {
         </select>
       </td>
       <td class="money-col ti-sub" style="text-align:right;font-weight:700;font-size:12px;color:var(--text)">0.00 €</td>
+      <td class="ns-col" style="text-align:center"><input type="checkbox" class="ti-ns locked-field" title="No suma al total (escalado)" onchange="LINES.calc()" style="width:18px;height:18px;cursor:pointer"></td>
       <td style="text-align:center"><button class="lock-hide" onclick="this.closest('tr').remove();LINES.calc()" style="background:none;border:none;color:#ef4444;font-weight:900;font-size:18px;cursor:pointer;line-height:1">✕</button></td>
     `;
     $id('lines-body').appendChild(tr);
@@ -1514,6 +1416,7 @@ const LINES = {
     if(inputs[1]) inputs[1].value=p||'0';
     const sel=tr.querySelector('select');
     if(sel) sel.value=String(iva||'21');
+    const nsChk=tr.querySelector('.ti-ns'); if(nsChk) nsChk.checked=!!ns;
     LINES.applyMoneyVis();
     LINES.calc();
   },
@@ -1521,11 +1424,13 @@ const LINES = {
     const hide=(fase==='HOJ');
     document.querySelectorAll('.money-col').forEach(el=>el.style.opacity=hide?'0':'1');
     document.querySelectorAll('#th-precio,#th-iva,#th-sub').forEach(el=>el.style.opacity=hide?'0':'1');
+    document.querySelectorAll('.ns-col').forEach(el=>el.style.display=(fase==='PRE')?'':'none');
     const ib=$id('iban-block');
     if(ib) ib.style.opacity=hide?'0':'1';
   },
   calc(){
     const grupos={};
+    const optRows=[]; let nsAny=false;
     document.querySelectorAll('#lines-body tr').forEach(row=>{
       const c=parseFloat(row.querySelector('input[type="number"]')?.value)||0;
       const pEl=row.querySelectorAll('input[type="number"]')[1];
@@ -1533,7 +1438,11 @@ const LINES = {
       const ivaEl=row.querySelector('select');
       const iva=ivaEl?.value||'21';
       const sub=c*p;
-      grupos[iva]=(grupos[iva]||0)+sub;
+      const ns=!!row.querySelector('.ti-ns')?.checked;   // linea informativa (escalado): no suma
+      row.classList.toggle('ns-row',ns);
+      if(ns) nsAny=true;
+      optRows.push({c:c, sub:sub, rate:parseFloat(iva)||0});
+      if(!ns) grupos[iva]=(grupos[iva]||0)+sub;
       const subCell=row.querySelector('.ti-sub');
       if(subCell) subCell.textContent=sub.toFixed(2)+' €';
     });
@@ -1549,7 +1458,12 @@ const LINES = {
         if(parseFloat(tipo)>0) html+=`<div class="totals-row"><span>IVA ${tipo}%</span><span>${ivaAmt.toFixed(2)} €</span></div>`;
       });
     }
-    html+=`<div class="totals-final">TOTAL: ${total.toFixed(2)} €</div>`;
+    const showOpts=(nsAny && !isHoj && fase==='PRE');
+    html+=`<div class="totals-final">TOTAL${showOpts?' (líneas que suman)':''}: ${total.toFixed(2)} €</div>`;
+    if(showOpts){
+      html+='<div class="totals-row" style="margin-top:8px;font-weight:900"><span>Totales por cantidad (con IVA)</span><span></span></div>';
+      optRows.forEach(o=>{ html+=`<div class="totals-row"><span>${o.c} uds</span><span>${(o.sub*(1+o.rate/100)).toFixed(2)} €</span></div>`; });
+    }
     $id('totals-block').innerHTML=html;
     DOC.autosave();
     return { grupos, base, ivaTotal, total };
@@ -1566,13 +1480,14 @@ const LINES = {
         p: inputs[1]?.value||'0',
         iva: row.querySelector('select')?.value||'21'
       });
+      if(row.querySelector('.ti-ns')?.checked) rows[rows.length-1].ns=true;   // solo se guarda cuando esta marcada
     });
     return rows;
   },
   loadRows(rows){
     $id('lines-body').innerHTML='';
     if(!rows||!rows.length){ LINES.add(); return; }
-    rows.forEach(r=>LINES.add(r.d,r.c,r.p,r.iva||'21'));
+    rows.forEach(r=>LINES.add(r.d,r.c,r.p,r.iva||'21',!!r.ns));
   }
 };
 
@@ -1618,9 +1533,6 @@ const DOC = {
     const savedNotas=DB.get('notas_'+f)||'';
     $id('doc-notas').value = savedNotas || (f==='PRE' ? 'Presupuesto válido durante 30 días naturales desde la fecha de emisión.' : '');
     if($id('doc-fecha-op')) $id('doc-fecha-op').value=DB.get('fechaop_'+f)||'';
-    // Escalado (solo PRE) — ANTES de cargar las lineas: LINES.loadRows dispara un autoguardado que lee este bloque
-    ESC.applyVisibility(f);
-    if(f==='PRE'){ try{ ESC.loadRows(JSON.parse(DB.get('esc_PRE')||'[]')); }catch(e){ ESC.loadRows([]); } } else { ESC.loadRows([]); }
     // Filas
     const rawRows=DB.get('rows_'+f);
     if(rawRows){ try{ LINES.loadRows(JSON.parse(rawRows)); }catch(e){ LINES.add(); } }
@@ -1668,7 +1580,6 @@ const DOC = {
   autosave(){
     // Guardar todo el estado del documento
     DB.set('rows_'+fase, JSON.stringify(LINES.getRows()));
-    if(fase==='PRE') DB.set('esc_PRE', JSON.stringify(ESC.getRows()));
     DB.set('notas_'+fase, $id('doc-notas').value);
     DB.set('nota_int_'+fase, $id('doc-nota-interna')?.value||'');
     DB.set('fecha_'+fase, $id('doc-fecha').value);
@@ -1755,7 +1666,6 @@ const DOC = {
       cliCif:  $id('c-cif').value,  cliDir: $id('c-dir').value,
       cliCp:   $id('c-cp').value,   cliMail:$id('c-mail')?.value||'',
       rows:   LINES.getRows(),
-      escalado: (fase==='PRE'?ESC.getRows():[]),
       ref:     $id('doc-ref')?.value||'',
       notas:  $id('doc-notas').value,
       notaInterna: $id('doc-nota-interna')?.value||'',
@@ -1950,7 +1860,8 @@ const DOC = {
     const today=hoyLocal();
 
     // ── CLAVE: copiar filas Y datos de cliente al localStorage del destino ──
-    DB.set('rows_'+toFase,   JSON.stringify(srcDoc.rows||[]));
+    const rowsNext=(srcDoc.rows||[]).filter(r=>!r.ns);
+    DB.set('rows_'+toFase,   JSON.stringify(rowsNext));
     DB.set('num_'+toFase,    newNum);
     DB.set('fecha_'+toFase,  today);
     DB.set('notas_'+toFase,  srcDoc.notas||'');
@@ -1965,7 +1876,7 @@ const DOC = {
       id:Date.now(), fase:toFase, num:newNum, fecha:today,
       cliNom:srcDoc.cliNom, cliAten:srcDoc.cliAten,
       cliCif:srcDoc.cliCif, cliDir:srcDoc.cliDir, cliCp:srcDoc.cliCp,
-      rows:srcDoc.rows,
+      rows:rowsNext,
       grupos:srcDoc.grupos, base:srcDoc.base, total:srcDoc.total,
       notas:srcDoc.notas,
       estado:'borrador',
@@ -2017,7 +1928,6 @@ const DOC = {
     DB.set('ref_'+fase,'');
     $id('lines-body').innerHTML='';
     $id('doc-notas').value='';
-    if(fase==='PRE'){ ESC.clear(); DB.set('esc_PRE','[]'); }
     // Fecha visible = hoy (si no, el autoguardado de LINES.add() reescribe la fecha vieja)
     if($id('doc-fecha')) $id('doc-fecha').value=hoyLocal();
     if($id('doc-fecha-op')) $id('doc-fecha-op').value='';
@@ -2368,7 +2278,7 @@ const HIST = {
     let body=`<div class="overflow-x-auto"><table class="dtable text-xs mb-3">
       <thead><tr><th class="text-left">Descripción</th><th>Cant.</th>${!isHoj?'<th>Precio</th><th>IVA</th><th>Subtotal</th>':''}</tr></thead>
       <tbody>${(doc.rows||[]).map(r=>`<tr>
-        <td>${esc(r.d)}</td><td style="text-align:center">${r.c}</td>
+        <td>${esc(r.d)}${r.ns?' <em style="opacity:.6">(no suma)</em>':''}</td><td style="text-align:center">${r.c}</td>
         ${!isHoj?`<td style="text-align:right">${parseFloat(r.p).toFixed(2)} €</td>
         <td style="text-align:center">${r.iva||21}%</td>
         <td style="text-align:right;font-weight:700">${(parseFloat(r.c)*parseFloat(r.p)).toFixed(2)} €</td>`:''}
@@ -2410,7 +2320,6 @@ const HIST = {
     DB.set('nota_int_'+f, doc.notaInterna||'');
     DB.set('ref_'+f,   doc.ref||'');
     DB.set('rows_'+f,  JSON.stringify(doc.rows||[]));
-    if(f==='PRE') DB.set('esc_PRE', JSON.stringify(doc.escalado||[]));
     DB.set('cnom',  doc.cliNom||'');
     DB.set('caten', doc.cliAten||'');
     DB.set('ccif',  doc.cliCif||'');
@@ -2479,7 +2388,6 @@ const HIST = {
     // Clear num so a new one gets assigned
     DB.set('num_'+doc.fase,'');
     DB.set('rows_'+doc.fase, JSON.stringify(doc.rows||[]));
-    if(doc.fase==='PRE') DB.set('esc_PRE', JSON.stringify(doc.escalado||[]));
     DB.set('notas_'+doc.fase, doc.notas||'');
     DB.set('ref_'+doc.fase, doc.ref||'');
     DB.set('cnom', doc.cliNom||''); DB.set('caten', doc.cliAten||'');
@@ -2594,8 +2502,7 @@ NIF: B27540947`);
       cuotaIva:'Quota IVA',
       emitido:'Emès el',
       fecha:'Data:',
-      escalado:'ESCALAT DE QUANTITATS', escConcepto:'Concepte', escPrecioUd:'Preu/ut.', escImporte:'Import',
-      escNota:'Imports informatius sense IVA, no inclosos en el total del pressupost.',
+      totCant:'TOTALS PER QUANTITAT',
     };
     return {
       titulo:{'PRE':'PRESUPUESTO','HOJ':'HOJA DE TRABAJO','ALB':'ALBARÁN','FAC':'FACTURA'},
@@ -2608,8 +2515,7 @@ NIF: B27540947`);
       cuotaIva:'Cuota IVA',
       emitido:'Emitido el',
       fecha:'Fecha:',
-      escalado:'ESCALADO DE CANTIDADES', escConcepto:'Concepto', escPrecioUd:'Precio/ud.', escImporte:'Importe',
-      escNota:'Importes informativos sin IVA, no incluidos en el total del presupuesto.',
+      totCant:'TOTALES POR CANTIDAD',
     };
   },
 
@@ -2757,9 +2663,41 @@ NIF: B27540947`);
     });
 
     let fy=doc.lastAutoTable.finalY+8;
+    const nsMode=(fase==='PRE' && !isHoj && valorado && !!document.querySelector('#lines-body .ti-ns:checked'));
 
+    // Totales por cantidad (presupuesto con escalado): sustituye a la caja de TOTAL unico
+    if(nsMode){
+      const opts=[];
+      document.querySelectorAll('#lines-body tr').forEach(row=>{
+        const inp=row.querySelectorAll('input[type="number"]');
+        const c=parseFloat(inp[0]?.value)||0, p=parseFloat(inp[1]?.value)||0;
+        const rate=parseFloat(row.querySelector('select')?.value||'21')||0;
+        const d=(row.querySelector('textarea')?.value||'').trim();
+        const base=c*p, iva=base*rate/100;
+        opts.push({d, c:inp[0]?.value||'0', rate, base, iva, tot:base+iva});
+      });
+      const sameDesc=opts.every(o=>o.d===opts[0].d), sameRate=opts.every(o=>o.rate===opts[0].rate);
+      const money=n=>(Math.round(n*100)/100).toFixed(2)+' €';
+      const tw=sameDesc?116:(W-2*M);
+      if(fy>235){ doc.addPage(); fy=20; }
+      doc.setFontSize(8); doc.setTextColor(...accentRgb); doc.setFont(undefined,'bold');
+      doc.text(i18n.totCant,W-M-tw,fy);
+      doc.autoTable({
+        startY:fy+2,
+        head:[[i18n.cant,i18n.base,sameRate?(i18n.iva+' '+opts[0].rate+'%'):i18n.iva,'TOTAL']],
+        body:opts.map(o=>[sameDesc?o.c:(o.d+' · '+o.c), money(o.base), money(o.iva), money(o.tot)]),
+        theme:'grid',
+        headStyles:{fillColor:c1,textColor:hdrTextRgb,fontStyle:'bold',fontSize:8},
+        bodyStyles:{fontSize:8.5,textColor:[30,41,59]},
+        alternateRowStyles:{fillColor:[248,250,252]},
+        columnStyles:{0:{halign:sameDesc?'center':'left',cellWidth:'auto'},1:{halign:'right',cellWidth:30},2:{halign:'right',cellWidth:28},3:{halign:'right',cellWidth:30,fontStyle:'bold'}},
+        margin:{left:W-M-tw,right:M}, tableWidth:tw
+      });
+      doc.setFont(undefined,'normal');
+      fy=doc.lastAutoTable.finalY+8;
+    }
     // Totales
-    if(!isHoj && valorado){
+    if(!isHoj && valorado && !nsMode){
       const totals=LINES.calc();
       const boxW=72, boxX=W-M-boxW;
       let bh=Object.keys(totals.grupos).filter(t=>totals.grupos[t]>0).length*10+18;
@@ -2795,31 +2733,6 @@ NIF: B27540947`);
         doc.setFont(undefined,'bold'); doc.setTextColor(15,23,42);
         doc.text('IBAN: ES49 0182 1013 1402 0167 1493  ·  Mailab Studio S.L.',M+4,fy+11);
         fy+=20;
-      }
-    }
-    // Escalado de cantidades (solo PRE): informativo, no suma al total
-    if(fase==='PRE'){
-      const escRows=ESC.getRows();
-      if(escRows.length){
-        if(fy>235){ doc.addPage(); fy=20; }
-        doc.setFontSize(8); doc.setTextColor(...accentRgb); doc.setFont(undefined,'bold');
-        doc.text(i18n.escalado,M,fy);
-        doc.autoTable({
-          startY:fy+2,
-          head:[[i18n.escConcepto,i18n.cant,i18n.escPrecioUd,i18n.escImporte]],
-          body:escRows.map(r=>[r.c||'', String(r.q||''), ESC._money(ESC._num(r.p)), ESC._money(ESC._num(r.q)*ESC._num(r.p))]),
-          theme:'grid',
-          headStyles:{fillColor:c1,textColor:hdrTextRgb,fontStyle:'bold',fontSize:8},
-          bodyStyles:{fontSize:8.5,textColor:[30,41,59]},
-          alternateRowStyles:{fillColor:[248,250,252]},
-          columnStyles:{0:{cellWidth:'auto'},1:{halign:'center',cellWidth:24},2:{halign:'right',cellWidth:28},3:{halign:'right',cellWidth:30}},
-          margin:{left:M,right:M}
-        });
-        fy=doc.lastAutoTable.finalY+4;
-        doc.setFontSize(7); doc.setFont(undefined,'italic'); doc.setTextColor(100,116,139);
-        doc.text(i18n.escNota,M,fy);
-        doc.setFont(undefined,'normal');
-        fy+=9;
       }
     }
     // Notas — filtrar frase de presupuesto si no es PRE
@@ -3623,6 +3536,7 @@ const MESFAC = {
       if(d.rows&&d.rows.length>0){
         // Copiar líneas reales del albarán tal cual
         d.rows.forEach(function(r){
+          if(r.ns) return;
           rows.push({d:'['+d.num+'] '+r.d, c:r.c, p:r.p, iva:r.iva||'21'});
         });
       } else {
@@ -4082,7 +3996,7 @@ const PRO = {
     const proDoc = {
       id: Date.now(), fase: 'PRO', anticipo: pct, pagado: pagado,
       num: num, fecha: fecha, ref: snap.ref||'', notas: snap.notas||'',
-      rows: snap.rows||[], total: snap.total||'', base: snap.base||'',
+      rows: (snap.rows||[]).filter(r=>!r.ns), total: snap.total||'', base: snap.base||'',
       cliNom: snap.cliNom||'', cliAten: snap.cliAten||'', cliCif: snap.cliCif||'',
       cliDir: snap.cliDir||'', cliCp: snap.cliCp||'', cliMail: snap.cliMail||'',
       estado: 'emitido', origen: num, origenF: 'PRE',
